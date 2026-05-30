@@ -68,7 +68,9 @@ export default function DashboardPage() {
   async function checkBankConnection() {
     try {
       const res = await fetch('/api/truelayer/transactions')
-      if (res.status !== 404) setBankConnected(true)
+      const data = await res.json()
+      if (res.status === 200 && !data.error) setBankConnected(true)
+      else setBankConnected(false)
     } catch { setBankConnected(false) }
   }
 

@@ -24,6 +24,7 @@ export default function NewVaultPage() {
   const [form, setForm] = useState({
     name: '',
     amount: '',
+    amount_type: 'fixed',
     unlock_date: '',
     category: 'rent',
     notes: '',
@@ -43,6 +44,7 @@ export default function NewVaultPage() {
       user_id: user.id,
       name: form.name,
       amount: amountNum,
+      amount_type: form.amount_type,
       currency: 'EUR',
       unlock_date: form.unlock_date,
       category: form.category,
@@ -58,7 +60,8 @@ export default function NewVaultPage() {
     }
   }
 
-  const isValid = form.name && amountNum > 0 && form.unlock_date
+  const isValid = form.name && amountNum > 0 && form.unlock_date &&
+    (form.amount_type === 'fixed' || (form.amount_type === 'percent' && amountNum <= 100))
 
   return (
     <main className="min-h-screen noise" style={{ background: 'var(--ink)' }}>
@@ -70,7 +73,6 @@ export default function NewVaultPage() {
       />
 
       <div className="relative z-10 max-w-lg mx-auto px-5 py-8">
-        {/* Back */}
         <Link href="/dashboard"
           className="inline-flex items-center gap-2 mb-8 text-sm transition-colors"
           style={{ color: 'var(--ghost)', fontFamily: 'var(--font-body)' }}>
@@ -110,32 +112,68 @@ export default function NewVaultPage() {
             />
           </div>
 
-          {/* Amount */}
+          {/* Amount type toggle */}
           <div>
             <label className="block text-xs mb-2" style={{ color: 'var(--ghost)', fontFamily: 'var(--font-body)' }}>
-              valor (€)
+              tipo de valor
             </label>
-            <input
-              type="number"
-              name="amount"
-              value={form.amount}
-              onChange={handleChange}
-              placeholder="0.00"
-              min="0"
-              step="0.01"
-              className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-all"
-              style={{
-                background: 'var(--locked)',
-                border: '1px solid var(--muted)',
-                color: '#E8E8F0',
-                fontFamily: 'var(--font-body)',
-              }}
-              onFocus={e => e.target.style.borderColor = 'rgba(74,222,128,0.4)'}
-              onBlur={e => e.target.style.borderColor = 'var(--muted)'}
-            />
+            <div className="flex gap-2 mb-3">
+              {[
+                { value: 'fixed', label: '€ valor fixo' },
+                { value: 'percent', label: '% percentagem' },
+              ].map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => setForm(prev => ({ ...prev, amount_type: opt.value, amount: '' }))}
+                  className="flex-1 py-2 rounded-xl text-xs transition-all"
+                  style={{
+                    background: form.amount_type === opt.value ? 'rgba(74,222,128,0.1)' : 'var(--locked)',
+                    border: form.amount_type === opt.value ? '1px solid rgba(74,222,128,0.3)' : '1px solid var(--muted)',
+                    color: form.amount_type === opt.value ? 'var(--accent)' : 'var(--ghost)',
+                    fontFamily: 'var(--font-body)',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm"
+                style={{ color: 'var(--ghost)', fontFamily: 'var(--font-body)' }}>
+                {form.amount_type === 'percent' ? '%' : '€'}
+              </span>
+              <input
+                type="number"
+                name="amount"
+                value={form.amount}
+                onChange={handleChange}
+                placeholder={form.amount_type === 'percent' ? '60' : '0.00'}
+                min="0"
+                max={form.amount_type === 'percent' ? '100' : undefined}
+                step={form.amount_type === 'percent' ? '1' : '0.01'}
+                className="w-full pl-8 pr-4 py-3 rounded-xl text-sm outline-none transition-all"
+                style={{
+                  background: 'var(--locked)',
+                  border: '1px solid var(--muted)',
+                  color: '#E8E8F0',
+                  fontFamily: 'var(--font-body)',
+                }}
+                onFocus={e => e.target.style.borderColor = 'rgba(74,222,128,0.4)'}
+                onBlur={e => e.target.style.borderColor = 'var(--muted)'}
+              />
+            </div>
+
             {amountNum > 0 && (
               <p className="text-xs mt-1" style={{ color: 'var(--accent)', fontFamily: 'var(--font-body)' }}>
-                {formatCurrency(amountNum)} bloqueados
+                {form.amount_type === 'percent'
+                  ? `${amountNum}% do valor que entrar na conta`
+                  : `${formatCurrency(amountNum)} bloqueados`}
+              </p>
+            )}
+            {form.amount_type === 'percent' && amountNum > 100 && (
+              <p className="text-xs mt-1" style={{ color: 'var(--danger)', fontFamily: 'var(--font-body)' }}>
+                máximo 100%
               </p>
             )}
           </div>
@@ -218,7 +256,10 @@ export default function NewVaultPage() {
               style={{ background: 'rgba(74,222,128,0.05)', border: '1px solid rgba(74,222,128,0.15)' }}>
               <p className="text-xs mb-1" style={{ color: 'var(--ghost)', fontFamily: 'var(--font-body)' }}>resumo</p>
               <p className="text-sm" style={{ fontFamily: 'var(--font-body)' }}>
-                <span style={{ color: 'var(--accent)' }}>{formatCurrency(amountNum)}</span>
+                <span style={{ color: 'var(--accent)' }}>
+                  {form.amount_type === 'percent' ? `${amountNum}%` : formatCurrency(amountNum)}
+                </span>
+                {form.amount_type === 'percent' ? ' do salário' : ''}
                 {' '}bloqueados até{' '}
                 <span style={{ color: '#E8E8F0' }}>
                   {new Date(form.unlock_date + 'T12:00:00').toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' })}

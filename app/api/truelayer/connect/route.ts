@@ -16,6 +16,6 @@ export async function GET() {
     state: userId,
   })
 
-  const authUrl = `https://auth.truelayer-sandbox.com/?${params.toString()}`
+  const authUrl = `https://auth.truelayer.com/?${params.toString()}`
   return NextResponse.redirect(authUrl)
 }

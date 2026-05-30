@@ -25,7 +25,7 @@ export async function GET() {
     return NextResponse.json({ error: 'No bank connected' }, { status: 404 })
   }
 
-  const accountsRes = await fetch('https://api.truelayer-sandbox.com/data/v1/accounts', {
+  const accountsRes = await fetch('https://api.truelayer.com/data/v1/accounts', {
     headers: { Authorization: `Bearer ${connection.access_token}` },
   })
   const accountsData = await accountsRes.json()
@@ -40,7 +40,7 @@ export async function GET() {
   const to = new Date().toISOString().split('T')[0]
 
   const txRes = await fetch(
-    `https://api.truelayer-sandbox.com/data/v1/accounts/${accountId}/transactions?from=${from}&to=${to}`,
+    `https://api.truelayer.com/data/v1/accounts/${accountId}/transactions?from=${from}&to=${to}`,
     { headers: { Authorization: `Bearer ${connection.access_token}` } }
   )
   const txData = await txRes.json()

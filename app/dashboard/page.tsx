@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useUser } from '@clerk/nextjs'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { Plus, Lock, Unlock, AlertTriangle, LogOut, Landmark, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Unlock, AlertTriangle, LogOut, Landmark, RefreshCw, ChevronUp } from 'lucide-react'
 import { useClerk } from '@clerk/nextjs'
 import { supabase, Vault } from '@/lib/supabase'
 import { formatCurrency, getTotalLocked, getCategoryEmoji, getCountdownText, isUnlockable } from '@/lib/utils'
@@ -33,19 +33,23 @@ export default function DashboardPage() {
   const [justConnected, setJustConnected] = useState(false)
 
   useEffect(() => {
-    if (user) {
-      fetchVaults()
-      checkBankConnection()
-    }
-  }, [user])
-
-  useEffect(() => {
+    // Se veio do callback com ?connected=true, já sabemos que está conectado
     if (searchParams.get('connected') === 'true') {
-      setJustConnected(true)
       setBankConnected(true)
+      setJustConnected(true)
       setTimeout(() => setJustConnected(false), 4000)
     }
   }, [searchParams])
+
+  useEffect(() => {
+    if (user) {
+      fetchVaults()
+      // Só verifica no Supabase se não veio do callback
+      if (searchParams.get('connected') !== 'true') {
+        checkBankConnection()
+      }
+    }
+  }, [user])
 
   useEffect(() => {
     if (emergencyCountdown > 0) {
@@ -55,12 +59,16 @@ export default function DashboardPage() {
   }, [emergencyCountdown])
 
   async function checkBankConnection() {
-    const { data } = await supabase
-      .from('bank_connections')
-      .select('id')
-      .eq('user_id', user!.id)
-      .single()
-    setBankConnected(!!data)
+    try {
+      const res = await fetch('/api/truelayer/transactions')
+      const data = await res.json()
+      // Se não deu erro "No bank connected", então está conectado
+      if (res.status !== 404) {
+        setBankConnected(true)
+      }
+    } catch {
+      setBankConnected(false)
+    }
   }
 
   async function fetchVaults() {

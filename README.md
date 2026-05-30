@@ -2,7 +2,7 @@
 
 > Esconde o teu dinheiro de ti mesmo.
 
-Bloqueia montantes até uma data específica. Sem acesso. Sem tentações.
+Bloqueia montantes até uma data específica. Sem acesso. Sem tentações!
 
 ---
 

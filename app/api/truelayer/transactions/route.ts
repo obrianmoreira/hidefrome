@@ -2,6 +2,8 @@ import { auth } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
+export const dynamic = 'force-dynamic'
+
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -11,7 +13,6 @@ export async function GET() {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  // Get user's access token
   const { data: connection } = await supabaseAdmin
     .from('bank_connections')
     .select('access_token')
@@ -22,7 +23,6 @@ export async function GET() {
     return NextResponse.json({ error: 'No bank connected' }, { status: 404 })
   }
 
-  // Get accounts
   const accountsRes = await fetch('https://api.truelayer-sandbox.com/data/v1/accounts', {
     headers: { Authorization: `Bearer ${connection.access_token}` },
   })
@@ -34,7 +34,6 @@ export async function GET() {
 
   const accountId = accountsData.results[0].account_id
 
-  // Get transactions from last 30 days
   const from = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   const to = new Date().toISOString().split('T')[0]
 
@@ -44,7 +43,6 @@ export async function GET() {
   )
   const txData = await txRes.json()
 
-  // Filter only incoming transactions (credits)
   const incoming = (txData.results || []).filter((tx: any) => tx.amount > 0)
 
   return NextResponse.json({ transactions: incoming, account_id: accountId })

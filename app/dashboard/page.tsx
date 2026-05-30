@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useUser } from '@clerk/nextjs'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { Plus, Unlock, AlertTriangle, LogOut, Landmark, RefreshCw, ChevronUp } from 'lucide-react'
+import { Plus, Unlock, AlertTriangle, LogOut, Landmark, RefreshCw, ChevronUp, Check, X, Zap } from 'lucide-react'
 import { useClerk } from '@clerk/nextjs'
 import { supabase, Vault } from '@/lib/supabase'
 import { formatCurrency, getTotalLocked, getCategoryEmoji, getCountdownText, isUnlockable } from '@/lib/utils'
@@ -15,6 +15,15 @@ type Transaction = {
   currency: string
   timestamp: string
   description: string
+}
+
+type Notification = {
+  id: string
+  vault_id: string
+  amount: number
+  incoming_amount: number
+  created_at: string
+  vaults: { name: string; category: string }
 }
 
 export default function DashboardPage() {
@@ -31,9 +40,9 @@ export default function DashboardPage() {
   const [loadingTx, setLoadingTx] = useState(false)
   const [showTx, setShowTx] = useState(false)
   const [justConnected, setJustConnected] = useState(false)
+  const [notifications, setNotifications] = useState<Notification[]>([])
 
   useEffect(() => {
-    // Se veio do callback com ?connected=true, já sabemos que está conectado
     if (searchParams.get('connected') === 'true') {
       setBankConnected(true)
       setJustConnected(true)
@@ -44,10 +53,8 @@ export default function DashboardPage() {
   useEffect(() => {
     if (user) {
       fetchVaults()
-      // Só verifica no Supabase se não veio do callback
-      if (searchParams.get('connected') !== 'true') {
-        checkBankConnection()
-      }
+      fetchNotifications()
+      if (searchParams.get('connected') !== 'true') checkBankConnection()
     }
   }, [user])
 
@@ -61,26 +68,32 @@ export default function DashboardPage() {
   async function checkBankConnection() {
     try {
       const res = await fetch('/api/truelayer/transactions')
-      const data = await res.json()
-      // Se não deu erro "No bank connected", então está conectado
-      if (res.status !== 404) {
-        setBankConnected(true)
-      }
-    } catch {
-      setBankConnected(false)
-    }
+      if (res.status !== 404) setBankConnected(true)
+    } catch { setBankConnected(false) }
   }
 
   async function fetchVaults() {
     if (!user) return
     setLoading(true)
     const { data, error } = await supabase
-      .from('vaults')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('unlock_date', { ascending: true })
+      .from('vaults').select('*').eq('user_id', user.id).order('unlock_date', { ascending: true })
     if (!error && data) setVaults(data)
     setLoading(false)
+  }
+
+  async function fetchNotifications() {
+    const res = await fetch('/api/notifications')
+    const data = await res.json()
+    if (data.notifications) setNotifications(data.notifications)
+  }
+
+  async function handleNotification(id: string, action: 'accepted' | 'dismissed') {
+    await fetch('/api/notifications', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, action }),
+    })
+    setNotifications(prev => prev.filter(n => n.id !== id))
   }
 
   async function fetchTransactions() {
@@ -94,27 +107,16 @@ export default function DashboardPage() {
 
   async function unlockVault(vaultId: string) {
     const { error } = await supabase
-      .from('vaults')
-      .update({ status: 'unlocked', unlocked_at: new Date().toISOString() })
-      .eq('id', vaultId)
-    if (!error) {
-      setUnlockingId(null)
-      fetchVaults()
-    }
+      .from('vaults').update({ status: 'unlocked', unlocked_at: new Date().toISOString() }).eq('id', vaultId)
+    if (!error) { setUnlockingId(null); fetchVaults() }
   }
 
   async function triggerEmergency(vaultId: string) {
     if (emergencyId === vaultId) {
       if (emergencyCountdown > 0) return
       const { error } = await supabase
-        .from('vaults')
-        .update({ status: 'emergency', unlocked_at: new Date().toISOString() })
-        .eq('id', vaultId)
-      if (!error) {
-        setEmergencyId(null)
-        setEmergencyCountdown(0)
-        fetchVaults()
-      }
+        .from('vaults').update({ status: 'emergency', unlocked_at: new Date().toISOString() }).eq('id', vaultId)
+      if (!error) { setEmergencyId(null); setEmergencyCountdown(0); fetchVaults() }
     } else {
       setEmergencyId(vaultId)
       setEmergencyCountdown(60)
@@ -128,20 +130,14 @@ export default function DashboardPage() {
   return (
     <main className="min-h-screen noise" style={{ background: 'var(--ink)' }}>
       <div className="fixed inset-0 opacity-[0.025]"
-        style={{
-          backgroundImage: 'linear-gradient(var(--muted) 1px, transparent 1px), linear-gradient(90deg, var(--muted) 1px, transparent 1px)',
-          backgroundSize: '60px 60px'
-        }}
+        style={{ backgroundImage: 'linear-gradient(var(--muted) 1px, transparent 1px), linear-gradient(90deg, var(--muted) 1px, transparent 1px)', backgroundSize: '60px 60px' }}
       />
 
       <div className="relative z-10 max-w-2xl mx-auto px-5 py-8">
 
-        {/* Header */}
         <header className="flex items-center justify-between mb-10 animate-fade-in">
           <div>
-            <h1 className="text-3xl font-800 tracking-tight" style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>
-              hide.
-            </h1>
+            <h1 className="text-3xl font-800 tracking-tight" style={{ fontFamily: 'var(--font-display)', fontWeight: 800 }}>hide.</h1>
             <p className="text-xs mt-1" style={{ color: 'var(--ghost)', fontFamily: 'var(--font-body)' }}>
               {user?.firstName ? `olá, ${user.firstName.toLowerCase()}` : 'os teus cofres'}
             </p>
@@ -151,7 +147,6 @@ export default function DashboardPage() {
           </button>
         </header>
 
-        {/* Just connected banner */}
         {justConnected && (
           <div className="rounded-xl px-4 py-3 mb-4 animate-fade-in flex items-center gap-2 text-sm"
             style={{ background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.2)', color: 'var(--accent)', fontFamily: 'var(--font-body)' }}>
@@ -159,9 +154,47 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Auto-block notifications */}
+        {notifications.length > 0 && (
+          <div className="mb-4 space-y-2">
+            {notifications.map(n => (
+              <div key={n.id} className="rounded-2xl p-4 animate-slide-up"
+                style={{ background: 'var(--locked)', border: '1px solid rgba(250,204,21,0.2)' }}>
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+                    style={{ background: 'rgba(250,204,21,0.1)' }}>
+                    <Zap size={13} style={{ color: 'var(--warn)' }} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-600" style={{ fontFamily: 'var(--font-display)', fontWeight: 600 }}>
+                      Entrada detetada
+                    </p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--ghost)', fontFamily: 'var(--font-body)' }}>
+                      Entrou <span style={{ color: '#E8E8F0' }}>{formatCurrency(n.incoming_amount)}</span> — bloquear <span style={{ color: 'var(--accent)' }}>{formatCurrency(n.amount)}</span> para <span style={{ color: '#E8E8F0' }}>{n.vaults?.name}</span>?
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => handleNotification(n.id, 'accepted')}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-600 transition-all flex-1 justify-center"
+                    style={{ background: 'var(--accent)', color: 'var(--ink)', fontFamily: 'var(--font-body)', fontWeight: 600 }}>
+                    <Check size={12} />
+                    bloquear agora
+                  </button>
+                  <button onClick={() => handleNotification(n.id, 'dismissed')}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs transition-all"
+                    style={{ background: 'var(--muted)', color: 'var(--ghost)', fontFamily: 'var(--font-body)' }}>
+                    <X size={12} />
+                    ignorar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Total locked */}
-        <div className="rounded-2xl p-6 mb-4 animate-slide-up"
-          style={{ background: 'var(--locked)', border: '1px solid rgba(74,222,128,0.1)' }}>
+        <div className="rounded-2xl p-6 mb-4 animate-slide-up" style={{ background: 'var(--locked)', border: '1px solid rgba(74,222,128,0.1)' }}>
           <p className="text-xs mb-2" style={{ color: 'var(--ghost)', fontFamily: 'var(--font-body)' }}>total bloqueado</p>
           <p className="text-4xl font-800 countdown" style={{ fontFamily: 'var(--font-display)', fontWeight: 800, color: 'var(--accent)' }}>
             {formatCurrency(totalLocked)}
@@ -171,13 +204,9 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* Bank connection card */}
+        {/* Bank card */}
         <div className="rounded-2xl p-4 mb-6 animate-slide-up"
-          style={{
-            background: 'var(--locked)',
-            border: bankConnected ? '1px solid rgba(74,222,128,0.15)' : '1px solid var(--muted)',
-            animationDelay: '80ms', opacity: 0
-          }}>
+          style={{ background: 'var(--locked)', border: bankConnected ? '1px solid rgba(74,222,128,0.15)' : '1px solid var(--muted)', animationDelay: '80ms', opacity: 0 }}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg flex items-center justify-center"
@@ -194,11 +223,9 @@ export default function DashboardPage() {
               </div>
             </div>
             {bankConnected ? (
-              <button
-                onClick={fetchTransactions}
+              <button onClick={fetchTransactions}
                 className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs transition-all"
-                style={{ background: 'rgba(74,222,128,0.1)', color: 'var(--accent)', fontFamily: 'var(--font-body)', border: '1px solid rgba(74,222,128,0.2)' }}
-              >
+                style={{ background: 'rgba(74,222,128,0.1)', color: 'var(--accent)', fontFamily: 'var(--font-body)', border: '1px solid rgba(74,222,128,0.2)' }}>
                 <RefreshCw size={11} />
                 ver entradas
               </button>
@@ -211,16 +238,11 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Transactions panel */}
           {showTx && bankConnected && (
             <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--muted)' }}>
               <div className="flex items-center justify-between mb-3">
-                <p className="text-xs" style={{ color: 'var(--ghost)', fontFamily: 'var(--font-body)' }}>
-                  entradas nos últimos 30 dias
-                </p>
-                <button onClick={() => setShowTx(false)} style={{ color: 'var(--muted)' }}>
-                  <ChevronUp size={14} />
-                </button>
+                <p className="text-xs" style={{ color: 'var(--ghost)', fontFamily: 'var(--font-body)' }}>entradas nos últimos 30 dias</p>
+                <button onClick={() => setShowTx(false)} style={{ color: 'var(--muted)' }}><ChevronUp size={14} /></button>
               </div>
               {loadingTx ? (
                 <p className="text-xs" style={{ color: 'var(--ghost)', fontFamily: 'var(--font-body)' }}>a carregar...</p>
@@ -232,12 +254,8 @@ export default function DashboardPage() {
                     <div key={tx.transaction_id} className="flex items-center justify-between py-2 rounded-lg px-3"
                       style={{ background: 'rgba(74,222,128,0.04)', border: '1px solid rgba(74,222,128,0.08)' }}>
                       <div>
-                        <p className="text-xs" style={{ fontFamily: 'var(--font-body)', color: '#E8E8F0' }}>
-                          {tx.description || 'Transferência recebida'}
-                        </p>
-                        <p className="text-xs" style={{ color: 'var(--ghost)', fontFamily: 'var(--font-body)' }}>
-                          {new Date(tx.timestamp).toLocaleDateString('pt-PT')}
-                        </p>
+                        <p className="text-xs" style={{ fontFamily: 'var(--font-body)', color: '#E8E8F0' }}>{tx.description || 'Transferência recebida'}</p>
+                        <p className="text-xs" style={{ color: 'var(--ghost)', fontFamily: 'var(--font-body)' }}>{new Date(tx.timestamp).toLocaleDateString('pt-PT')}</p>
                       </div>
                       <p className="text-sm font-600" style={{ color: 'var(--accent)', fontFamily: 'var(--font-display)', fontWeight: 600 }}>
                         +{formatCurrency(tx.amount)}
@@ -250,17 +268,13 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Vaults list */}
+        {/* Vaults */}
         {loading ? (
-          <div className="text-center py-16" style={{ color: 'var(--ghost)', fontFamily: 'var(--font-body)', fontSize: '0.875rem' }}>
-            a carregar...
-          </div>
+          <div className="text-center py-16" style={{ color: 'var(--ghost)', fontFamily: 'var(--font-body)', fontSize: '0.875rem' }}>a carregar...</div>
         ) : lockedVaults.length === 0 && unlockedVaults.length === 0 ? (
           <div className="text-center py-16 animate-fade-in">
             <div className="text-5xl mb-4">🔐</div>
-            <p className="text-sm mb-6" style={{ color: 'var(--ghost)', fontFamily: 'var(--font-body)' }}>
-              Nenhum cofre ainda.<br />Cria o primeiro agora.
-            </p>
+            <p className="text-sm mb-6" style={{ color: 'var(--ghost)', fontFamily: 'var(--font-body)' }}>Nenhum cofre ainda.<br />Cria o primeiro agora.</p>
             <Link href="/vault/new"
               className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-600 transition-all hover:scale-105"
               style={{ background: 'var(--accent)', color: 'var(--ink)', fontFamily: 'var(--font-body)', fontWeight: 600 }}>
@@ -283,9 +297,12 @@ export default function DashboardPage() {
                     <div className="flex items-center gap-3">
                       <span className="text-2xl">{getCategoryEmoji(vault.category)}</span>
                       <div>
-                        <h3 className="font-700 text-sm" style={{ fontFamily: 'var(--font-display)', fontWeight: 700 }}>
-                          {vault.name}
-                        </h3>
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="font-700 text-sm" style={{ fontFamily: 'var(--font-display)', fontWeight: 700 }}>{vault.name}</h3>
+                          {(vault as any).trigger_threshold && (
+                            <Zap size={11} style={{ color: 'var(--accent)' }} />
+                          )}
+                        </div>
                         <p className="text-xs" style={{ color: 'var(--ghost)', fontFamily: 'var(--font-body)' }}>
                           libera em {new Date(vault.unlock_date).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long' })}
                         </p>
@@ -293,9 +310,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="text-right">
                       <p className="font-700 text-sm countdown" style={{ fontFamily: 'var(--font-display)', fontWeight: 700 }}>
-                        {(vault as any).amount_type === 'percent'
-                          ? `${vault.amount}%`
-                          : formatCurrency(vault.amount, vault.currency)}
+                        {(vault as any).amount_type === 'percent' ? `${vault.amount}%` : formatCurrency(vault.amount, vault.currency)}
                       </p>
                       <span className={`text-xs px-2 py-0.5 rounded-full ${unlockable ? 'badge-unlocked' : 'badge-locked'}`}>
                         {unlockable ? 'pronto' : 'bloqueado'}
@@ -304,11 +319,9 @@ export default function DashboardPage() {
                   </div>
 
                   {!unlockable && (
-                    <div className="mb-4">
-                      <p className="text-xs font-600 countdown" style={{ color: 'var(--accent)', fontFamily: 'var(--font-display)' }}>
-                        {countdown}
-                      </p>
-                    </div>
+                    <p className="text-xs font-600 countdown mb-4" style={{ color: 'var(--accent)', fontFamily: 'var(--font-display)' }}>
+                      {countdown}
+                    </p>
                   )}
 
                   <div className="flex gap-2">
@@ -373,8 +386,7 @@ export default function DashboardPage() {
               <div className="mt-8">
                 <p className="text-xs mb-3" style={{ color: 'var(--muted)', fontFamily: 'var(--font-body)' }}>histórico</p>
                 {unlockedVaults.map((vault) => (
-                  <div key={vault.id} className="rounded-2xl p-4 mb-2 opacity-50"
-                    style={{ background: 'var(--vault)', border: '1px solid var(--muted)' }}>
+                  <div key={vault.id} className="rounded-2xl p-4 mb-2 opacity-50" style={{ background: 'var(--vault)', border: '1px solid var(--muted)' }}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <span>{getCategoryEmoji(vault.category)}</span>
@@ -397,10 +409,7 @@ export default function DashboardPage() {
         {(lockedVaults.length > 0 || unlockedVaults.length > 0) && (
           <Link href="/vault/new"
             className="fixed bottom-8 right-8 flex items-center gap-2 px-5 py-4 rounded-2xl text-sm font-600 shadow-lg transition-all hover:scale-105 animate-fade-in"
-            style={{
-              background: 'var(--accent)', color: 'var(--ink)', fontFamily: 'var(--font-body)', fontWeight: 600,
-              boxShadow: '0 8px 32px rgba(74,222,128,0.25)'
-            }}>
+            style={{ background: 'var(--accent)', color: 'var(--ink)', fontFamily: 'var(--font-body)', fontWeight: 600, boxShadow: '0 8px 32px rgba(74,222,128,0.25)' }}>
             <Plus size={18} />
             novo cofre
           </Link>

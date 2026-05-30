@@ -20,6 +20,8 @@ export async function GET(req: NextRequest) {
   const userId = searchParams.get('state')
   const baseUrl = getBaseUrl(req)
 
+  console.log('[callback] code:', !!code, 'userId:', userId)
+
   if (!code || !userId) {
     return NextResponse.redirect(`${baseUrl}/dashboard?error=missing_params`)
   }
@@ -37,6 +39,7 @@ export async function GET(req: NextRequest) {
   })
 
   const tokenData = await tokenRes.json()
+  console.log('[callback] token response:', JSON.stringify(tokenData).slice(0, 200))
 
   if (!tokenData.access_token) {
     return NextResponse.redirect(`${baseUrl}/dashboard?error=token_failed`)
@@ -44,7 +47,7 @@ export async function GET(req: NextRequest) {
 
   const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
 
-  await supabaseAdmin
+  const { error: upsertError } = await supabaseAdmin
     .from('bank_connections')
     .upsert({
       user_id: userId,
@@ -53,6 +56,12 @@ export async function GET(req: NextRequest) {
       expires_at: expiresAt,
       provider: 'truelayer',
     }, { onConflict: 'user_id' })
+
+  console.log('[callback] upsert error:', upsertError)
+
+  if (upsertError) {
+    return NextResponse.redirect(`${baseUrl}/dashboard?error=db_failed&msg=${encodeURIComponent(upsertError.message)}`)
+  }
 
   return NextResponse.redirect(`${baseUrl}/dashboard?connected=true`)
 }

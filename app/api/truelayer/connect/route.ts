@@ -12,7 +12,7 @@ export async function GET() {
     client_id: process.env.TRUELAYER_CLIENT_ID!,
     scope: 'info accounts balance transactions',
     redirect_uri: process.env.NEXT_PUBLIC_TRUELAYER_REDIRECT_URI!,
-    providers: 'uk-ob-all uk-oauth-all',
+    providers: 'mock',
     state: userId,
   })
 

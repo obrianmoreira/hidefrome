@@ -22,7 +22,7 @@ export async function GET() {
   if (!connection) return NextResponse.json({ error: 'No connection found' })
 
   // Get accounts
-  const accountsRes = await fetch('https://api.truelayer-sandbox.com/data/v1/accounts', {
+  const accountsRes = await fetch('https://api.truelayer.com/data/v1/accounts', {
     headers: { Authorization: `Bearer ${connection.access_token}` },
   })
   const accountsData = await accountsRes.json()
@@ -35,7 +35,7 @@ export async function GET() {
 
   // Get ALL transactions without date filter
   const txRes = await fetch(
-    `https://api.truelayer-sandbox.com/data/v1/accounts/${accountId}/transactions`,
+    `https://api.truelayer.com/data/v1/accounts/${accountId}/transactions`,
     { headers: { Authorization: `Bearer ${connection.access_token}` } }
   )
   const txData = await txRes.json()

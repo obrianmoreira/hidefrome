@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(`${baseUrl}/dashboard?error=missing_params`)
   }
 
-  const tokenRes = await fetch('https://auth.truelayer-sandbox.com/connect/token', {
+  const tokenRes = await fetch('https://auth.truelayer.com/connect/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
